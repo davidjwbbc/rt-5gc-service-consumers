@@ -8,8 +8,10 @@
  * https://drive.google.com/file/d/1cinCiA778IErENZ3JN52VFW-1ffHpx7Z/view
  */
 #include "ogs-core.h"
+#include "ogs-sbi.h"
 
 #include "macros.h"
+#include "json-patch.h"
 #include "priv_civic-address.h"
 #include "priv_geographic-area.h"
 
@@ -137,6 +139,69 @@ bool _ext_mbs_service_area_equal(const mb_smf_sc_ext_mbs_service_area_t *a, cons
 
     _ext_mbs_service_area_free(b_copy);
     return true;
+}
+
+ogs_list_t *_ext_mbs_service_area_patch_list(const mb_smf_sc_ext_mbs_service_area_t *a, const mb_smf_sc_ext_mbs_service_area_t *b)
+{
+    ogs_list_t *patches = NULL;
+
+    if (a != b) {
+        if (!a) {
+            /* create whole new ExtMbsServiceArea */
+            _json_patch_t *patch = _json_patch_new(OpenAPI_patch_operation_add, "/", _ext_mbs_service_area_to_json(b));
+            patches = (ogs_list_t*)ogs_calloc(1, sizeof(*patches));
+            ogs_list_add(patches, patch);
+        } else if (!b) {
+            _json_patch_t *patch = _json_patch_new(OpenAPI_patch_operation__remove, "/", NULL);
+            patches = (ogs_list_t*)ogs_calloc(1, sizeof(*patches));
+            ogs_list_add(patches, patch);
+        } else {
+            patches = _json_patches_append_list(patches, _geographic_areas_patch_list(&a->geographic_areas, &b->geographic_areas), "/geographicAreaList");
+            patches = _json_patches_append_list(patches, _civic_addresses_patch_list(&a->civic_addresses, &b->civic_addresses), "/civicAddressList");
+        }
+    }
+
+    return patches;
+}
+
+OpenAPI_external_mbs_service_area_t *_ext_mbs_service_area_to_openapi(const mb_smf_sc_ext_mbs_service_area_t *area)
+{
+    if (!area) return NULL;
+
+    OpenAPI_external_mbs_service_area_t *api_area = OpenAPI_external_mbs_service_area_create(NULL, NULL);
+
+    if (ogs_list_count(&area->geographic_areas) > 0) {
+        api_area->geographic_area_list = OpenAPI_list_create();
+        mb_smf_sc_geographic_area_t *geog_area;
+        ogs_list_for_each(&area->geographic_areas, geog_area) {
+            OpenAPI_geographic_area_t *api_geog_area = _geographic_area_to_openapi(geog_area);
+            if (api_geog_area) OpenAPI_list_add(api_area->geographic_area_list, api_geog_area);
+        }
+    }
+
+    if (ogs_list_count(&area->civic_addresses) > 0) {
+        api_area->civic_address_list = OpenAPI_list_create();
+        mb_smf_sc_civic_address_t *civic_addr;
+        ogs_list_for_each(&area->civic_addresses, civic_addr) {
+            OpenAPI_civic_address_t *api_civic_addr = _civic_address_to_openapi(civic_addr);
+            if (api_civic_addr) OpenAPI_list_add(api_area->civic_address_list, civic_addr);
+        }
+    }
+
+    return api_area;
+}
+
+cJSON *_ext_mbs_service_area_to_json(const mb_smf_sc_ext_mbs_service_area_t *area)
+{
+    if (!area) return NULL;
+
+    OpenAPI_external_mbs_service_area_t *api_area = _ext_mbs_service_area_to_openapi(area);
+    if (!api_area) return NULL;
+
+    cJSON *json = OpenAPI_external_mbs_service_area_convertToJSON(api_area);
+    OpenAPI_external_mbs_service_area_free(api_area);
+
+    return json;
 }
 
 /* vim:ts=8:sts=4:sw=4:expandtab:

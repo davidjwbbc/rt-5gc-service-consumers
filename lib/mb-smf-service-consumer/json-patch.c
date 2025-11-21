@@ -11,7 +11,7 @@
 #include "ogs-core.h"
 #include "ogs-sbi.h"
 
-#include "json_patch.h"
+#include "json-patch.h"
 
 /* Library internal data types */
 
